@@ -1,0 +1,76 @@
+UNC6384 YARA(s)
+
+rule CanonStager_Loader_PE
+{
+    meta:
+        author = "Terrierhound"
+        date = "2025-11-03"
+        description = "Detects CanonStager-like loader/PE artifacts (strings from SecurityAffairs summary)."
+        source = "SecurityAffairs / Arctic Wolf summary"
+        reference = "https://securityaffairs.com/184083/apt/china-linked-unc6384-exploits-windows-zero-day-to-spy-on-european-diplomats.html"
+
+    strings:
+        $s_cnmpaui      = "cnmpaui"            nocase
+        $s_cnmpaui_dll  = "cnmpaui.dll"        nocase
+        $s_cnmpaui_exe  = "cnmpaui.exe"        nocase
+        $s_cnmplog      = "cnmplog.dat"        nocase
+        $s_tarname      = "rjnlzlkfe.ta"       nocase
+        $s_appdata_tmp  = "%AppData%\\Local\\Temp" nocase
+        $s_eu_decoy     = "EU meeting agenda"  nocase
+        $s_rc4_hint     = "RC4"                nocase
+
+    condition:
+        pe and ( any of ($s_cnmpaui*, $s_cnmplog, $s_tarname, $s_appdata_tmp, $s_eu_decoy) )
+
+===========================================================
+
+rule Malicious_LNK_PowerShell_Delivery
+{
+    meta:
+        author = "Terrierhound"
+        date = "2025-11-03"
+        description = "Detect LNK-delivered obfuscated PowerShell that extracts tar and drops loader (heuristic)."
+        source = "SecurityAffairs / Arctic Wolf summary"
+
+    strings:
+        $s_lnk_marker        = ".lnk"                         nocase
+        $s_powershell        = "powershell"                   nocase
+        $s_iEX               = "IEX "                         nocase
+        $s_from_b64          = "FromBase64String"             nocase
+        $s_tar_cmd           = "tar -x"                       nocase
+        $s_extract_tmp       = "%AppData%\\Local\\Temp"       nocase
+        $s_rjnlzlkfe         = "rjnlzlkfe.ta"                 nocase
+        $s_eu_decoy          = "EU meeting agenda"            nocase
+        $s_invoked_command   = "Start-Process"                nocase
+        $s_obfuscation_char  = "-EncodedCommand"              nocase
+
+    condition:
+        not pe and (
+            (any of ($s_powershell, $s_iEX, $s_from_b64, $s_obfuscation_char) and any of ($s_tar_cmd, $s_extract_tmp, $s_rjnlzlkfe))
+            or
+            (any of ($s_lnk_marker) and any of ($s_powershell, $s_from_b64, $s_tar_cmd))
+
+===========================================================
+
+rule UNC6384_C2_Domains
+{
+    meta:
+        author = "Terreirhound"
+        date = "2025-11-03"
+        description = "Detect references to known domains reported in the SecurityAffairs article."
+        source = "SecurityAffairs / Arctic Wolf summary"
+
+    strings:
+        $d1 = "racineupci.org"        nocase
+        $d2 = "dorareco.net"          nocase
+        $d3 = "naturadeco.net"        nocase
+        $d4 = "cloudfront"            nocase
+
+        $http_prefix = "http://"       nocase
+        $https_prefix = "https://"     nocase
+
+    condition:
+        (any of ($d1, $d2, $d3) and (any of ($http_prefix, $https_prefix) or filesize < 2000000))
+        or
+        (any of ($d1, $d2, $d3) and not pe)
+}
